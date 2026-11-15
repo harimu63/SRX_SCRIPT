@@ -80,6 +80,19 @@ if "$acme" --issue --server letsencrypt -d "$DOMAIN" --standalone -k ec-256; the
         --fullchain-file /etc/xray/xray.crt \
         --key-file /etc/xray/xray.key \
         --reloadcmd /usr/local/sbin/autoxray-ssl-reload || exit 1
+elif [ -s "/root/.acme.sh/${DOMAIN}_ecc/fullchain.cer" ] && [ -s "/root/.acme.sh/${DOMAIN}_ecc/${DOMAIN}.key" ] && openssl x509 -in "/root/.acme.sh/${DOMAIN}_ecc/fullchain.cer" -noout -checkend 0 2>/dev/null; then
+    # acme.sh menolak terbit baru kalau sertifikat masih berlaku ("Skipping.
+    # Next renewal time ...") dan keluar dengan kode non-nol. Itu bukan gagal:
+    # sertifikatnya sudah ada dan valid, tinggal dipasang.
+    echo "[INFO] Sertifikat untuk ${DOMAIN} masih berlaku, memakai sertifikat yang sudah ada." >&2
+    touch /etc/xray/xray.crt /etc/xray/xray.key
+    chown root:www-data /etc/xray/xray.crt /etc/xray/xray.key
+    chmod 644 /etc/xray/xray.crt
+    chmod 640 /etc/xray/xray.key
+    "$acme" --install-cert -d "$DOMAIN" --ecc \
+        --fullchain-file /etc/xray/xray.crt \
+        --key-file /etc/xray/xray.key \
+        --reloadcmd /usr/local/sbin/autoxray-ssl-reload || exit 1
 elif [ "${SSL_ALLOW_SELF_SIGNED:-0}" = 1 ]; then
     echo '[WARNING] Menggunakan self-signed SSL sementara (tidak trusted publik).' >&2
     openssl req -x509 -nodes -newkey rsa:2048 \
