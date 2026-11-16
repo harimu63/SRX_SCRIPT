@@ -11,7 +11,7 @@
 Login ke VPS sebagai **root**, lalu jalankan:
 
 ```
-apt update -y && apt install -y wget curl ca-certificates && wget -q https://raw.githubusercontent.com/USERNAME/NAMA-REPO/main/setup.sh && chmod +x setup.sh && ./setup.sh
+apt update -y && apt install -y wget curl ca-certificates && wget -q https://raw.githubusercontent.com/harimu63/SRX_SCRIPT/main/setup.sh && chmod +x setup.sh && ./setup.sh
 ```
 
 (Ganti `USERNAME/NAMA-REPO` dengan repo fork kamu. Atau clone repo ini lalu jalankan `./setup.sh` dari dalam folder hasil clone — file-file lain akan diambil dari folder lokal.)
@@ -75,7 +75,7 @@ Mohon baca sampai selesai sebelum melakukan instalasi!
 Login ke VPS Anda sebagai **root** (`sudo su`), lalu salin dan jalankan kode berikut:
 
 ```bash
-apt update -y && apt install -y wget curl ca-certificates && wget -q https://raw.githubusercontent.com/fahrialimudin/autoscript-vip/main/setup.sh && chmod +x setup.sh && ./setup.sh
+apt update -y && apt install -y wget curl ca-certificates && wget -q https://raw.githubusercontent.com/harimu63/SRX_SCRIPT/main/setup.sh && chmod +x setup.sh && ./setup.sh
 ```
 
 > ✅ Kode di atas bisa langsung di-copy dengan mengklik ikon salin di pojok kanan blok kode.
@@ -85,7 +85,7 @@ apt update -y && apt install -y wget curl ca-certificates && wget -q https://raw
 ## 📱 TAMPILAN MENU
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/fahrialimudin/autoscript-vip/main/gambar/menu.jpg" alt="Tampilan Menu" width="100%"/>
+  <img src="https://raw.githubusercontent.com/harimu63/SRX_SCRIPT/main/gambar/menu.jpg" alt="Tampilan Menu" width="100%"/>
 </p>
 
 ---

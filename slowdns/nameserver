@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-REPOS="${REPO:-https://raw.githubusercontent.com/fahrialimudin/autoscript-vip/main/}"
+REPOS="${REPO:-https://raw.githubusercontent.com/harimu63/SRX_SCRIPT/main/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fetch_asset() {
     local name="$1" target="$2" tmp

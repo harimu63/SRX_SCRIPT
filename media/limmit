@@ -1,5 +1,5 @@
 #!/bin/bash
-REPO="${REPO:-https://raw.githubusercontent.com/fahrialimudin/autoscript-vip/main/}"
+REPO="${REPO:-https://raw.githubusercontent.com/harimu63/SRX_SCRIPT/main/}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fetch_asset() {
     local rel="$1" dst="$2" tmp
