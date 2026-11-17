@@ -5,6 +5,10 @@ clear
 echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
 echo -e "        UPDATE MENU AUTOSCRIPT"
 echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo ""
+echo -e "\033[1;33m[INFO]\033[0m Updating menu files..."
+
+# Update menu files
 MENU_FILES="addhost addss addssh addtr addvless addws asu autobackup autokill autoreboot backup bw ceklim cekss cekssh cektr cekvless cekws change-color clearcache clearlog delexp delss delssh deltr delvless delws fixcert kacuk kontol limitspeed lock m-noob m-sshws m-ssws m-system m-trojan m-vless m-vmess member menu menu-backup prot renewss renewssh renewtr renewvless renewws restart restore run sdo speedtest tendang trial trialss trialtr trialvless trialws udepe unlock update-menu xp"
 for file in $MENU_FILES; do
     # Simpan perbaikan yang dikemas dalam ZIP saat menu di-update.
@@ -17,6 +21,53 @@ for file in $MENU_FILES; do
     fi
     chmod +x "/usr/local/sbin/$file"
 done
-echo -e "\033[1;32mUpdate menu selesai.\033[0m"
-sleep 1
+echo -e "\033[1;32m✓ Menu files updated\033[0m"
+
+# Update Telegram Backup Handler (New Feature)
+echo ""
+echo -e "\033[1;33m[INFO]\033[0m Checking Telegram Backup system..."
+if [ ! -f "/usr/local/sbin/telegram-backup-handler.sh" ]; then
+    echo -e "\033[1;33m[NEW]\033[0m Installing Telegram Backup feature..."
+    
+    # Install dependencies if not exists
+    if ! command -v jq >/dev/null 2>&1; then
+        echo -e "\033[1;33m      Installing jq dependency...\033[0m"
+        apt-get update -qq >/dev/null 2>&1
+        apt-get install -y jq bc >/dev/null 2>&1
+    fi
+    
+    # Download and install Telegram handler
+    if command -v wget >/dev/null 2>&1; then
+        wget -q "${BASE}media/telegram-backup.sh" -O "/usr/local/sbin/telegram-backup-handler.sh"
+    else
+        curl -fsSL "${BASE}media/telegram-backup.sh" -o "/usr/local/sbin/telegram-backup-handler.sh"
+    fi
+    chmod 755 "/usr/local/sbin/telegram-backup-handler.sh"
+    
+    echo -e "\033[1;32m✓ Telegram Backup installed!\033[0m"
+    echo -e "\033[1;36m  Setup: menu → [8] BCKP/RSTR → [3] Auto Backup → [1] Setup Telegram Bot\033[0m"
+else
+    # Update existing handler
+    if command -v wget >/dev/null 2>&1; then
+        wget -q "${BASE}media/telegram-backup.sh" -O "/usr/local/sbin/telegram-backup-handler.sh"
+    else
+        curl -fsSL "${BASE}media/telegram-backup.sh" -o "/usr/local/sbin/telegram-backup-handler.sh"
+    fi
+    chmod 755 "/usr/local/sbin/telegram-backup-handler.sh"
+    echo -e "\033[1;32m✓ Telegram Backup updated\033[0m"
+fi
+
+echo ""
+echo -e "\033[1;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "\033[1;32m       ✓ UPDATE COMPLETED!\033[0m"
+echo -e "\033[1;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo ""
+echo -e "\033[1;36m📱 NEW FEATURE: Telegram Backup System\033[0m"
+echo -e "   • Auto backup daily at 03:00 WIB"
+echo -e "   • Keep 3 latest backups"
+echo -e "   • Easy restore from Telegram"
+echo -e ""
+echo -e "   Setup now: menu → [8] → [3] → [1]"
+echo ""
+sleep 2
 menu

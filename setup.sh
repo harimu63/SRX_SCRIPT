@@ -318,7 +318,7 @@ function base_package() {
     # Pisahkan paket wajib dari paket tambahan; jangan sembunyikan kegagalan paket wajib.
     apt-get install "${APT_ARGS[@]}" --no-install-recommends \
         nginx haproxy openssh-server dropbear vnstat curl wget ca-certificates \
-        unzip zip openssl socat jq cron iptables iptables-persistent \
+        unzip zip openssl socat jq bc cron iptables iptables-persistent \
         netfilter-persistent openvpn easy-rsa git lsof chrony python3 \
         rsyslog net-tools libsqlite3-dev || { print_error "Paket inti gagal dipasang"; exit 1; }
     apt-get install "${APT_ARGS[@]}" --no-install-recommends \
@@ -793,32 +793,14 @@ print_success "OpenVPN"
 
 function ins_backup(){
 clear
-print_install "Memasang Backup Server"
-apt-get install "${APT_ARGS[@]}" rclone msmtp-mta ca-certificates bsd-mailx >/dev/null 2>&1 || true
-mkdir -p /root/.config/rclone
-printf "q
-" | rclone config >/dev/null 2>&1 || true
-# Konfigurasi token cloud bawaan dihapus.
-# Jalankan rclone config manual jika ingin mengaktifkan backup cloud.
-cat >/etc/msmtprc <<'EOF'
-# Konfigurasi email backup dinonaktifkan secara default.
-# Isi SMTP Anda sendiri jika ingin mengaktifkan pengiriman email backup.
-# defaults
-# tls on
-# tls_starttls on
-# tls_trust_file /etc/ssl/certs/ca-certificates.crt
-# account default
-# host smtp.example.com
-# port 587
-# auth on
-# user user@example.com
-# from user@example.com
-# password GANTI_PASSWORD_ANDA
-# logfile ~/.msmtp.log
-EOF
-chmod 600 /etc/msmtprc
+print_install "Memasang Telegram Backup System"
+# Install dependencies untuk Telegram backup (curl & jq sudah ada di base_package)
+# Copy Telegram handler ke lokasi system
+fetch_file "media/telegram-backup.sh" "/usr/local/sbin/telegram-backup-handler.sh" || true
+chmod 755 /usr/local/sbin/telegram-backup-handler.sh
+# Setup iptables for VPS
 fetch_file "media/ipserver" "/etc/ipserver" && bash /etc/ipserver || true
-print_success "Backup Server"
+print_success "Telegram Backup System"
 }
 
 clear

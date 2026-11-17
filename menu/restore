@@ -1,49 +1,360 @@
 #!/bin/bash
 # ==========================================
-# Color
+# Restore from Telegram Bot Backup
+# Modified to work with Telegram-based backup
+# ==========================================
+
+# Color codes
 RED='\033[0;31m'
 NC='\033[0m'
 GREEN='\033[0;32m'
 ORANGE='\033[0;33m'
+YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 LIGHT='\033[0;37m'
-clear
-function notif_restore() {
-    green "Notif AddHost Tele"
-    sleep 2
-URL="$URL"
-TEXT="
-<code>◇━━━━━━━━━━━━━━◇</code>
-<b>  ⚠️ RESTORE NOTIF⚠️</b>
-<b>     Detail Restore VPS</b>
-<code>◇━━━━━━━━━━━━━━◇</code>
-<code>Restore Vps Done</code>
-<code>◇━━━━━━━━━━━━━━◇</code>
-"
-}
-# ==========================================
-# Getting
-clear
-echo "Silahkan Masukin Link Backupnya"
-read -rp "Link File: " -e url
-wget -O backup.zip "$url"
-unzip backup.zip
-rm -f backup.zip
-sleep 1
-echo Start Restore
-cd /root/backup
-cp passwd /etc/
-cp group /etc/
-cp shadow /etc/
-cp gshadow /etc/
-cp -r kyt /var/lib/
-cp -r xray /etc/
-cp -r html /var/www/
-cp crontab /etc/
 
-notif_restore
-rm -rf /root/backup
-rm -f backup.zip
-echo ""
+# Load Telegram handler
+TELEGRAM_HANDLER="/usr/local/sbin/telegram-backup-handler.sh"
+if [ ! -f "$TELEGRAM_HANDLER" ]; then
+    TELEGRAM_HANDLER="/root/telegram-backup.sh"
+fi
+
+if [ -f "$TELEGRAM_HANDLER" ]; then
+    source "$TELEGRAM_HANDLER"
+else
+    echo -e "${RED}Error: Telegram handler not found!${NC}"
+    exit 1
+fi
+
+TELEGRAM_CONFIG="/etc/telegram-backup.conf"
+
+# Function to list recent backups from Telegram
+function list_telegram_backups() {
+    if [ ! -f "$TELEGRAM_CONFIG" ]; then
+        echo -e "${RED}Error: Telegram not configured!${NC}"
+        return 1
+    fi
+    
+    source "$TELEGRAM_CONFIG"
+    
+    echo -e "${YELLOW}Fetching backup list from Telegram...${NC}"
+    echo ""
+    
+    # Get recent messages with documents
+    local response=$(curl -s "https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?limit=50&offset=-50")
+    
+    # Parse backup files (documents with "backup" in caption/filename)
+    local backup_count=0
+    local file_ids=()
+    local file_names=()
+    local file_dates=()
+    local file_sizes=()
+    
+    # Extract messages with documents
+    echo "$response" | grep -o '"document":{[^}]*}' | while read -r doc; do
+        # Get file info
+        local file_name=$(echo "$doc" | grep -o '"file_name":"[^"]*"' | cut -d'"' -f4)
+        local file_size=$(echo "$doc" | grep -o '"file_size":[0-9]*' | cut -d':' -f2)
+        
+        # Check if it's a backup file (contains .zip and IP pattern)
+        if [[ "$file_name" =~ .*\.zip$ ]]; then
+            backup_count=$((backup_count + 1))
+            echo "$backup_count|$file_name|$file_size"
+        fi
+    done > /tmp/telegram_backup_list.tmp
+    
+    if [ ! -s /tmp/telegram_backup_list.tmp ]; then
+        echo -e "${YELLOW}No backups found in Telegram!${NC}"
+        rm -f /tmp/telegram_backup_list.tmp
+        return 1
+    fi
+    
+    # Display backup list
+    echo -e "${CYAN}╔════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${LIGHT}         AVAILABLE TELEGRAM BACKUPS              ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    local index=1
+    while IFS='|' read -r num filename filesize; do
+        local size_mb=$(echo "scale=2; $filesize / 1024 / 1024" | bc 2>/dev/null || echo "N/A")
+        printf "${GREEN}[%d]${NC} %s ${YELLOW}(%.2fMB)${NC}\n" "$index" "$filename" "$size_mb"
+        index=$((index + 1))
+    done < /tmp/telegram_backup_list.tmp
+    
+    echo ""
+    rm -f /tmp/telegram_backup_list.tmp
+    return 0
+}
+
+# Function to restore from Telegram backup
+function restore_from_telegram() {
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${LIGHT}       RESTORE FROM TELEGRAM BACKUP             ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    if [ ! -f "$TELEGRAM_CONFIG" ]; then
+        echo -e "${RED}Error: Telegram Bot not configured!${NC}"
+        echo -e "${YELLOW}Please setup Telegram Bot in 'autobackup' menu first.${NC}"
+        echo ""
+        read -n 1 -s -r -p "Press any key to continue..."
+        return 1
+    fi
+    
+    source "$TELEGRAM_CONFIG"
+    
+    echo -e "${YELLOW}Choose restore method:${NC}"
+    echo ""
+    echo -e "${GREEN}[1]${NC} List recent backups from Telegram"
+    echo -e "${GREEN}[2]${NC} Manual restore using file_id"
+    echo -e "${GREEN}[3]${NC} Restore from URL (external link)"
+    echo -e "${GREEN}[0]${NC} Cancel"
+    echo ""
+    read -rp "Select option: " restore_option
+    
+    case $restore_option in
+        1)
+            restore_from_list
+            ;;
+        2)
+            restore_manual_file_id
+            ;;
+        3)
+            restore_from_url
+            ;;
+        0)
+            return 0
+            ;;
+        *)
+            echo -e "${RED}Invalid option!${NC}"
+            sleep 2
+            return 1
+            ;;
+    esac
+}
+
+# Function to restore from backup list
+function restore_from_list() {
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${LIGHT}         SELECT BACKUP TO RESTORE                ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    # Get recent backup messages with file_id
+    local response=$(curl -s "https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?limit=20&offset=-20")
+    
+    # Extract messages containing backup documents
+    local backup_files=$(echo "$response" | jq -r '.result[] | select(.message.document.file_name | test(".*\\.zip$")) | "\(.message.document.file_id)|\(.message.document.file_name)|\(.message.document.file_size)|\(.message.date)"' 2>/dev/null)
+    
+    if [ -z "$backup_files" ]; then
+        echo -e "${YELLOW}No backup files found in recent Telegram messages!${NC}"
+        echo -e "${YELLOW}Please use manual file_id option or check your Telegram.${NC}"
+        echo ""
+        read -n 1 -s -r -p "Press any key to continue..."
+        return 1
+    fi
+    
+    # Display backups
+    echo -e "${LIGHT}Recent backups found:${NC}"
+    echo ""
+    
+    local index=1
+    declare -A file_id_map
+    
+    echo "$backup_files" | while IFS='|' read -r file_id file_name file_size timestamp; do
+        local size_mb=$(echo "scale=2; $file_size / 1024 / 1024" | bc 2>/dev/null || echo "N/A")
+        local date_str=$(date -d "@$timestamp" "+%Y-%m-%d %H:%M" 2>/dev/null || echo "Unknown")
+        printf "${GREEN}[%d]${NC} %s\n" "$index" "$file_name"
+        printf "    ${YELLOW}Size:${NC} %.2fMB  ${YELLOW}Date:${NC} %s\n" "$size_mb" "$date_str"
+        printf "    ${YELLOW}File ID:${NC} %s\n\n" "${file_id:0:30}..."
+        
+        file_id_map[$index]=$file_id
+        index=$((index + 1))
+    done | head -n 30
+    
+    # Let user select
+    echo ""
+    read -rp "Select backup number to restore (or 0 to cancel): " backup_num
+    
+    if [ "$backup_num" = "0" ]; then
+        return 0
+    fi
+    
+    # Get selected file_id
+    local selected_file_id=$(echo "$backup_files" | sed -n "${backup_num}p" | cut -d'|' -f1)
+    
+    if [ -z "$selected_file_id" ]; then
+        echo -e "${RED}Invalid selection!${NC}"
+        sleep 2
+        return 1
+    fi
+    
+    perform_restore "$selected_file_id"
+}
+
+# Function to restore using manual file_id
+function restore_manual_file_id() {
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${LIGHT}       RESTORE USING FILE_ID                    ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}You can get file_id from:${NC}"
+    echo -e "  1. Previous backup output"
+    echo -e "  2. Telegram Bot API"
+    echo -e "  3. Forward backup file to @getidsbot"
+    echo ""
+    read -rp "Enter file_id: " file_id
+    
+    if [ -z "$file_id" ]; then
+        echo -e "${RED}File ID cannot be empty!${NC}"
+        sleep 2
+        return 1
+    fi
+    
+    perform_restore "$file_id"
+}
+
+# Function to restore from URL (compatibility with old method)
+function restore_from_url() {
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${LIGHT}       RESTORE FROM URL                         ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}Enter backup URL (Google Drive, Dropbox, etc.):${NC}"
+    read -rp "URL: " url
+    
+    if [ -z "$url" ]; then
+        echo -e "${RED}URL cannot be empty!${NC}"
+        sleep 2
+        return 1
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}Downloading backup from URL...${NC}"
+    
+    wget -O /root/backup.zip "$url" 2>&1 | grep -E "%" | tail -1
+    
+    if [ ! -f /root/backup.zip ] || [ ! -s /root/backup.zip ]; then
+        echo -e "${RED}Failed to download backup file!${NC}"
+        rm -f /root/backup.zip
+        sleep 3
+        return 1
+    fi
+    
+    perform_restore_from_file "/root/backup.zip"
+}
+
+# Function to perform actual restore
+function perform_restore() {
+    local file_id="$1"
+    
+    if [ ! -f "$TELEGRAM_CONFIG" ]; then
+        echo -e "${RED}Telegram configuration not found!${NC}"
+        return 1
+    fi
+    
+    source "$TELEGRAM_CONFIG"
+    
+    echo ""
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}Starting restore process...${NC}"
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    echo -e "${CYAN}[1/4]${NC} Downloading backup from Telegram..."
+    
+    if ! download_telegram_file "$file_id" "/root/backup.zip" "$BOT_TOKEN"; then
+        echo -e "${RED}Failed to download backup file!${NC}"
+        sleep 3
+        return 1
+    fi
+    
+    perform_restore_from_file "/root/backup.zip"
+}
+
+# Function to perform restore from local file
+function perform_restore_from_file() {
+    local backup_file="$1"
+    
+    echo -e "${CYAN}[2/4]${NC} Extracting backup..."
+    unzip -o "$backup_file" -d /root/ >/dev/null 2>&1
+    
+    if [ ! -d /root/backup ]; then
+        echo -e "${RED}Failed to extract backup!${NC}"
+        rm -f "$backup_file"
+        sleep 3
+        return 1
+    fi
+    
+    echo -e "${CYAN}[3/4]${NC} Restoring system files..."
+    cd /root/backup
+    
+    # Restore system files
+    cp passwd /etc/ 2>/dev/null
+    cp group /etc/ 2>/dev/null
+    cp shadow /etc/ 2>/dev/null
+    cp gshadow /etc/ 2>/dev/null
+    cp crontab /etc/ 2>/dev/null
+    
+    # Restore VPN configs
+    cp -r kyt /var/lib/ 2>/dev/null
+    cp -r xray /etc/ 2>/dev/null
+    cp -r html /var/www/ 2>/dev/null
+    cp -r openvpn /etc/ 2>/dev/null
+    
+    echo -e "${CYAN}[4/4]${NC} Restarting services..."
+    
+    # Restart services
+    systemctl restart xray >/dev/null 2>&1
+    systemctl restart nginx >/dev/null 2>&1
+    systemctl restart ssh >/dev/null 2>&1
+    systemctl restart dropbear >/dev/null 2>&1
+    systemctl restart openvpn-server@server-tcp >/dev/null 2>&1
+    systemctl restart openvpn-server@server-udp >/dev/null 2>&1
+    
+    # Cleanup
+    cd /root
+    rm -rf /root/backup
+    rm -f "$backup_file"
+    
+    echo ""
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}           ✓ RESTORE COMPLETED!${NC}"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${CYAN}Your VPS has been restored from backup.${NC}"
+    echo -e "${YELLOW}Please verify your services and configurations.${NC}"
+    echo ""
+    
+    # Send notification to Telegram
+    if [ -f "$TELEGRAM_CONFIG" ]; then
+        source "$TELEGRAM_CONFIG"
+        local restore_msg="✅ <b>RESTORE COMPLETED</b>
+
+<b>Server Info:</b>
+━━━━━━━━━━━━━━━━
+🌐 IP     : <code>$(curl -sS ipv4.icanhazip.com 2>/dev/null)</code>
+📅 Date   : $(date '+%Y-%m-%d')
+⏰ Time   : $(date '+%H:%M:%S')
+━━━━━━━━━━━━━━━━
+
+VPS has been restored successfully!"
+        
+        curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHAT_ID}" \
+            -d text="${restore_msg}" \
+            -d parse_mode="HTML" >/dev/null 2>&1
+    fi
+    
+    read -n 1 -s -r -p "Press any key to continue..."
+}
+
+# Main execution
+restore_from_telegram

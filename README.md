@@ -105,12 +105,59 @@ apt update -y && apt install -y wget curl ca-certificates && wget -q https://raw
 - 🔐 **Fail2ban** — Proteksi brute force  
 - 🔄 **Auto Reboot & Restart** — Semua service  
 - 🧹 **Auto Delete Expired User**  
-- 💾 **Auto Backup Server**  
+- 💾 **Auto Backup via Telegram Bot** — Backup otomatis ke Telegram (keep 3 terakhir)  
 - 🚦 **Limit IP & Quota** per user  
 - 🧠 **Swap Memory 1GB** — Optimasi RAM  
 - 🚀 **BBRPLUS** — Optimasi kecepatan jaringan  
 - 🌐 **DNS Changer**  
 - 🎨 **Custom Menu Color**  
+
+---
+
+## 🔄 UPDATE OTOMATIS UNTUK USER LAMA
+
+User yang sudah install script lama **tidak perlu install ulang!** Cukup jalankan update menu:
+
+```bash
+# Update menu script
+menu → [12] UPDATE MENU
+
+# Atau langsung
+update-menu
+```
+
+**Yang akan terjadi saat update:**
+- ✅ Semua menu file ter-update
+- ✅ Telegram Backup handler ter-install otomatis
+- ✅ Dependencies (jq, bc) ter-install jika belum ada
+- ✅ Notifikasi fitur baru muncul
+- ✅ Config lama tetap aman (tidak terhapus)
+
+**Setelah update, setup Telegram Bot:**
+```bash
+menu → [8] BCKP/RSTR → [3] Auto Backup → [1] Setup Telegram Bot
+```
+
+---
+
+## 📱 FITUR BARU: TELEGRAM BACKUP SYSTEM
+
+Script ini menggunakan **Telegram Bot** untuk backup/restore, menggantikan sistem email yang lama.
+
+### Keunggulan:
+- ✅ **Gratis & Reliable** — Tidak perlu setup SMTP/Google Drive
+- ✅ **Auto Backup** — Jam 03:00 WIB setiap hari
+- ✅ **Keep 3 Backup** — Auto delete backup lama
+- ✅ **Easy Restore** — Pilih dari list atau input file_id
+- ✅ **Real-time Notification** — Notif langsung ke Telegram
+
+### Setup Cepat (2 menit):
+1. Buat bot di **@BotFather** → dapat BOT_TOKEN
+2. Chat bot Anda → get CHAT_ID dari **@userinfobot**
+3. Di VPS: `menu` → [8] BCKP/RSTR → [3] Auto Backup → [1] Setup Telegram Bot
+4. Masukkan BOT_TOKEN & CHAT_ID → Done!
+
+📖 **Dokumentasi Lengkap:** [TELEGRAM-BACKUP-GUIDE.md](./TELEGRAM-BACKUP-GUIDE.md)
 
 ---
 

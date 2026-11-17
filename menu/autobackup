@@ -1,132 +1,376 @@
 #!/bin/bash
 # ==========================================
-# Color
+# Auto Backup Configuration - Telegram Bot
+# Modified from email-based to Telegram-based
+# ==========================================
+
+# Color codes
 RED='\033[0;31m'
 NC='\033[0m'
 GREEN='\033[0;32m'
 ORANGE='\033[0;33m'
+YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 LIGHT='\033[0;37m'
-# ==========================================
-# Getting
-MYIP=$(wget -qO- icanhazip.com);
-clear
-IP=$(wget -qO- ipinfo.io/ip);
-date=$(date +"%Y-%m-%d");
-Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"
+
+# Config file
+TELEGRAM_CONFIG="/etc/telegram-backup.conf"
+TELEGRAM_HANDLER="/usr/local/sbin/telegram-backup-handler.sh"
+
+# Load Telegram handler if exists
+if [ -f "$TELEGRAM_HANDLER" ]; then
+    source "$TELEGRAM_HANDLER"
+fi
+
+Green_font_prefix="\033[32m"
+Red_font_prefix="\033[31m"
+Green_background_prefix="\033[42;37m"
+Red_background_prefix="\033[41;37m"
+Font_color_suffix="\033[0m"
 Info="${Green_font_prefix}[ON]${Font_color_suffix}"
 Error="${Red_font_prefix}[OFF]${Font_color_suffix}"
+
+# Check if autobackup is enabled
 cek=$(grep -c -E "^# BEGIN_Backup" /etc/crontab)
 if [[ "$cek" = "1" ]]; then
-sts="${Info}"
+    sts="${Info}"
 else
-sts="${Error}"
+    sts="${Error}"
 fi
-function start() {
-email=$(cat /home/email)
-if [[ "$email" = "" ]]; then
-echo "Please enter your email"
-read -rp "Email : " -e email
-cat <<EOF>>/home/email
-$email
+
+# Function: Setup Telegram Bot
+function setup_telegram() {
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${LIGHT}         SETUP TELEGRAM BOT BACKUP              ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}Please follow these steps to setup Telegram Bot:${NC}"
+    echo ""
+    echo -e "${GREEN}1.${NC} Open Telegram and search for ${CYAN}@BotFather${NC}"
+    echo -e "${GREEN}2.${NC} Send command: ${CYAN}/newbot${NC}"
+    echo -e "${GREEN}3.${NC} Follow instructions and copy your ${CYAN}BOT_TOKEN${NC}"
+    echo -e "${GREEN}4.${NC} Create a group or use private chat"
+    echo -e "${GREEN}5.${NC} Add your bot to the group (if using group)"
+    echo -e "${GREEN}6.${NC} Send a message to the bot/group"
+    echo -e "${GREEN}7.${NC} Get your ${CYAN}CHAT_ID${NC} from ${CYAN}@userinfobot${NC} or ${CYAN}@getidsbot${NC}"
+    echo ""
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    read -rp "Enter your BOT_TOKEN: " -e bot_token
+    
+    if [ -z "$bot_token" ]; then
+        echo -e "${RED}Error: BOT_TOKEN cannot be empty!${NC}"
+        sleep 2
+        return 1
+    fi
+    
+    read -rp "Enter your CHAT_ID: " -e chat_id
+    
+    if [ -z "$chat_id" ]; then
+        echo -e "${RED}Error: CHAT_ID cannot be empty!${NC}"
+        sleep 2
+        return 1
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}Testing Telegram Bot connection...${NC}"
+    
+    # Test bot configuration
+    if ! command -v curl &> /dev/null; then
+        echo -e "${RED}Error: curl is not installed!${NC}"
+        sleep 2
+        return 1
+    fi
+    
+    # Validate bot token
+    bot_info=$(curl -s "https://api.telegram.org/bot${bot_token}/getMe")
+    
+    if ! echo "$bot_info" | grep -q '"ok":true'; then
+        echo -e "${RED}✗ Invalid BOT_TOKEN!${NC}"
+        echo -e "${YELLOW}Please check your BOT_TOKEN and try again.${NC}"
+        sleep 3
+        return 1
+    fi
+    
+    bot_username=$(echo "$bot_info" | grep -o '"username":"[^"]*"' | cut -d'"' -f4)
+    echo -e "${GREEN}✓ Bot connected: @${bot_username}${NC}"
+    
+    # Test send message
+    test_message="🔔 <b>Telegram Backup Setup</b>
+
+✅ Your VPS backup bot is now configured!
+
+<b>Bot:</b> @${bot_username}
+<b>Time:</b> $(date '+%Y-%m-%d %H:%M:%S')
+
+The backup system is ready to use."
+    
+    test_response=$(curl -s -X POST "https://api.telegram.org/bot${bot_token}/sendMessage" \
+        -d chat_id="${chat_id}" \
+        -d text="${test_message}" \
+        -d parse_mode="HTML")
+    
+    if echo "$test_response" | grep -q '"ok":true'; then
+        echo -e "${GREEN}✓ Test message sent successfully!${NC}"
+        echo ""
+        
+        # Save configuration
+        cat > "$TELEGRAM_CONFIG" <<EOF
+# Telegram Backup Configuration
+# Generated on: $(date '+%Y-%m-%d %H:%M:%S')
+
+BOT_TOKEN="${bot_token}"
+CHAT_ID="${chat_id}"
+BACKUP_TIME="0 3 * * *"
 EOF
-fi
-cat << EOF >> /etc/crontab
-# BEGIN_Backup
-5 0 * * * root backup
-# END_Backup
-EOF
-service cron restart
-sleep 1
-echo " Please Wait"
-clear
-echo " Autobackup Has Been Started"
-echo " Data Will Be Backed Up Automatically at 00:05 GMT +7"
-exit 0
-}
-function stop() {
-email=$(cat /home/email)
-sed -i "/^$email/d" /home/email
-sed -i "/^# BEGIN_Backup/,/^# END_Backup/d" /etc/crontab
-service cron restart
-sleep 1
-echo " Please Wait"
-clear
-echo " Autobackup Has Been Stopped"
-exit 0
+        chmod 600 "$TELEGRAM_CONFIG"
+        
+        echo -e "${GREEN}✓ Configuration saved!${NC}"
+        echo ""
+        echo -e "${CYAN}You can now use the backup features.${NC}"
+        sleep 3
+        return 0
+    else
+        echo -e "${RED}✗ Failed to send test message!${NC}"
+        echo -e "${YELLOW}Please check your CHAT_ID and make sure:${NC}"
+        echo -e "  - Bot is added to the chat/group"
+        echo -e "  - Bot has permission to send messages"
+        echo -e "  - CHAT_ID is correct (use @userinfobot or @getidsbot)"
+        sleep 5
+        return 1
+    fi
 }
 
-function gantipenerima() {
-rm -rf /home/email
-echo "Please enter your email"
-read -rp "Email : " -e email
-cat <<EOF>>/home/email
-$email
+# Function: Start Autobackup
+function start_autobackup() {
+    # Check if Telegram is configured
+    if [ ! -f "$TELEGRAM_CONFIG" ]; then
+        echo -e "${RED}Error: Telegram Bot not configured!${NC}"
+        echo -e "${YELLOW}Please setup Telegram Bot first (Option 1).${NC}"
+        sleep 2
+        return 1
+    fi
+    
+    # Check if already enabled
+    if grep -q "^# BEGIN_Backup" /etc/crontab; then
+        echo -e "${YELLOW}Autobackup is already enabled!${NC}"
+        sleep 2
+        return 0
+    fi
+    
+    # Add cron job
+    cat >> /etc/crontab <<EOF
+# BEGIN_Backup
+0 3 * * * root /usr/local/sbin/backup >/dev/null 2>&1
+# END_Backup
 EOF
+    
+    service cron restart >/dev/null 2>&1
+    systemctl restart cron >/dev/null 2>&1
+    
+    clear
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}      ✓ AUTOBACKUP ENABLED!${NC}"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${LIGHT}Backup Schedule:${NC}"
+    echo -e "  Time  : ${GREEN}03:00 AM (GMT+7)${NC} daily"
+    echo -e "  Keep  : ${GREEN}Last 3 backups${NC}"
+    echo -e "  Method: ${GREEN}Telegram Bot${NC}"
+    echo ""
+    echo -e "${CYAN}Backup will run automatically every day at 03:00 AM${NC}"
+    echo ""
+    sleep 3
 }
-function gantipengirim() {
-echo "Please enter your email"
-read -rp "Email : " -e email
-echo "Please enter your Password email"
-read -rp "Password : " -e pwdd
-rm -rf /etc/msmtprc
-cat<<EOF>>/etc/msmtprc
-defaults
-tls on
-tls_starttls on
-tls_trust_file /etc/ssl/certs/ca-certificates.crt
-account default
-host smtp.gmail.com
-port 587
-auth on
-user $email
-from $email
-password $pwdd
-logfile ~/.msmtp.log
+
+# Function: Stop Autobackup
+function stop_autobackup() {
+    if ! grep -q "^# BEGIN_Backup" /etc/crontab; then
+        echo -e "${YELLOW}Autobackup is not enabled!${NC}"
+        sleep 2
+        return 0
+    fi
+    
+    sed -i "/^# BEGIN_Backup/,/^# END_Backup/d" /etc/crontab
+    service cron restart >/dev/null 2>&1
+    systemctl restart cron >/dev/null 2>&1
+    
+    clear
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}      ⚠ AUTOBACKUP DISABLED${NC}"
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${LIGHT}Automatic backup has been disabled.${NC}"
+    echo -e "${LIGHT}You can still use manual backup anytime.${NC}"
+    echo ""
+    sleep 3
+}
+
+# Function: Change backup time
+function change_backup_time() {
+    if [ ! -f "$TELEGRAM_CONFIG" ]; then
+        echo -e "${RED}Error: Telegram Bot not configured!${NC}"
+        sleep 2
+        return 1
+    fi
+    
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${LIGHT}          CHANGE BACKUP TIME                    ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}Current backup time: 03:00 AM${NC}"
+    echo ""
+    echo -e "${LIGHT}Enter new backup time (hour 0-23):${NC}"
+    read -rp "Hour (0-23): " -e new_hour
+    
+    if ! [[ "$new_hour" =~ ^[0-9]+$ ]] || [ "$new_hour" -lt 0 ] || [ "$new_hour" -gt 23 ]; then
+        echo -e "${RED}Invalid hour! Please enter 0-23.${NC}"
+        sleep 2
+        return 1
+    fi
+    
+    # Update cron job
+    if grep -q "^# BEGIN_Backup" /etc/crontab; then
+        sed -i "/^# BEGIN_Backup/,/^# END_Backup/d" /etc/crontab
+        cat >> /etc/crontab <<EOF
+# BEGIN_Backup
+0 ${new_hour} * * * root /usr/local/sbin/backup >/dev/null 2>&1
+# END_Backup
 EOF
+        service cron restart >/dev/null 2>&1
+    fi
+    
+    # Update config file
+    sed -i "s/^BACKUP_TIME=.*/BACKUP_TIME=\"0 ${new_hour} * * *\"/" "$TELEGRAM_CONFIG"
+    
+    echo ""
+    echo -e "${GREEN}✓ Backup time updated to ${new_hour}:00${NC}"
+    sleep 2
 }
-function testemail() {
-email=$(cat /home/email)
-if [[ "$email" = "" ]]; then
-start
-fi
-email=$(cat /home/email)
-echo -e "
-Ini adalah isi email percobaaan kirim email dari vps
-IP VPS : $IP
-Tanggal : $date
-" | mail -s "Percobaan Pengiriman Email" $email
+
+# Function: View Telegram Config
+function view_config() {
+    if [ ! -f "$TELEGRAM_CONFIG" ]; then
+        echo -e "${RED}Telegram Bot not configured yet!${NC}"
+        sleep 2
+        return 1
+    fi
+    
+    source "$TELEGRAM_CONFIG"
+    
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${LIGHT}       TELEGRAM BACKUP CONFIGURATION            ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${LIGHT}BOT_TOKEN :${NC} ${GREEN}${BOT_TOKEN:0:20}...${NC}"
+    echo -e "${LIGHT}CHAT_ID   :${NC} ${GREEN}${CHAT_ID}${NC}"
+    echo -e "${LIGHT}Status    :${NC} $sts"
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    read -n 1 -s -r -p "Press any key to continue..."
 }
+
+# Function: Test Backup
+function test_backup() {
+    if [ ! -f "$TELEGRAM_CONFIG" ]; then
+        echo -e "${RED}Error: Telegram Bot not configured!${NC}"
+        sleep 2
+        return 1
+    fi
+    
+    source "$TELEGRAM_CONFIG"
+    
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║${LIGHT}          TEST TELEGRAM BACKUP                  ${CYAN}║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}Sending test message to Telegram...${NC}"
+    
+    IP=$(curl -sS ipv4.icanhazip.com 2>/dev/null || echo "Unknown")
+    domain=$(cat /etc/xray/domain 2>/dev/null || echo "No-Domain")
+    
+    test_message="🔔 <b>Backup System Test</b>
+
+<b>Server Info:</b>
+━━━━━━━━━━━━━━━━
+🌐 IP     : <code>${IP}</code>
+🔗 Domain : <code>${domain}</code>
+📅 Date   : $(date '+%Y-%m-%d')
+⏰ Time   : $(date '+%H:%M:%S')
+━━━━━━━━━━━━━━━━
+
+✅ Telegram backup system is working!"
+    
+    response=$(curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+        -d chat_id="${CHAT_ID}" \
+        -d text="${test_message}" \
+        -d parse_mode="HTML")
+    
+    if echo "$response" | grep -q '"ok":true'; then
+        echo -e "${GREEN}✓ Test message sent successfully!${NC}"
+        echo -e "${CYAN}Check your Telegram for the test message.${NC}"
+    else
+        echo -e "${RED}✗ Failed to send test message!${NC}"
+        echo -e "${YELLOW}Please check your configuration.${NC}"
+    fi
+    echo ""
+    sleep 3
+}
+
+# Main Menu
 clear
-echo -e "=============================="
-echo -e "     Autobackup Data $sts     "
-echo -e "=============================="
-echo -e "1. Start Autobackup"
-echo -e "2. Stop Autobackup"
-echo -e "3. Ganti Email Penerima"
-echo -e "4. Ganti Email Pengirim"
-echo -e "5. Test kirim Email"
-echo -e "=============================="
-read -rp "Please Enter The Correct Number : " -e num
+echo -e "${PURPLE}┌─────────────────────────────────────────────────┐${NC}"
+echo -e "${PURPLE}│\e[1;97;101m          AUTO BACKUP - TELEGRAM BOT             ${PURPLE}│${NC}"
+echo -e "${PURPLE}└─────────────────────────────────────────────────┘${NC}"
+echo -e " ${PURPLE}┌───────────────────────────────────────────────┐${NC}"
+echo -e "     ${GREEN}[${LIGHT}1${GREEN}]${NC} Setup Telegram Bot      "
+echo -e "     ${GREEN}[${LIGHT}2${GREEN}]${NC} Start Autobackup        "
+echo -e "     ${GREEN}[${LIGHT}3${GREEN}]${NC} Stop Autobackup         "
+echo -e "     ${GREEN}[${LIGHT}4${GREEN}]${NC} Change Backup Time      "
+echo -e "     ${GREEN}[${LIGHT}5${GREEN}]${NC} View Configuration      "
+echo -e "     ${GREEN}[${LIGHT}6${GREEN}]${NC} Test Telegram Bot       "
+echo -e "     ${GREEN}[${LIGHT}0${GREEN}]${NC} Back To Menu            "
+echo -e " "
+echo -e "     Status: $sts"
+echo -e " "
+echo -e "     \e[1;97;101m✶ Modified for Telegram Bot by Kiro AI ✶${NC} "
+echo -e " ${PURPLE}└──────────────────────────────────────────────┘${NC}"
+echo ""
+read -rp " Select menu : " num
+echo ""
+
 case $num in
 1)
-start
-;;
+    setup_telegram
+    ;;
 2)
-stop
-;;
+    start_autobackup
+    ;;
 3)
-gantipenerima
-;;
+    stop_autobackup
+    ;;
 4)
-gantipengirim
-;;
+    change_backup_time
+    ;;
 5)
-testemail
-;;
+    view_config
+    ;;
+6)
+    test_backup
+    ;;
+0)
+    menu-backup
+    ;;
 *)
-clear
-;;
+    clear
+    autobackup
+    ;;
 esac
